@@ -29,7 +29,7 @@ openssl req -new -x509 -key private-key.pem -out cert.pem -days 360
 
 Exempel på refs: '-refs #credit', refererar till en XML-nod med id 'credit'. https://www.w3.org/TR/xmldsig-core/#sec-URI
 
-Normal användning:
-Ta fram den XML ni vill signera.
-Signera den med 's' och den privata nyckeln.
-Validera signaturen 'v' med den publika nyckeln.
+Normal användning:  
+Ta fram den XML ni vill signera.  
+Signera den med 's' och den privata nyckeln.  
+Validera signaturen 'v' med den publika nyckeln.  
