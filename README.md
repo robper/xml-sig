@@ -23,9 +23,9 @@ openssl req -new -x509 -key private-key.pem -out cert.pem -days 360
   
  
 # Användning
-./xml-sig s file.xml private-key.pem -refs [ref1, ref2...]  (refs optional, always signs full document)
-./xml-sig v file.xml public-key.pem                         (public key/cert)
-./xml-sig v file.xml -private private-key.pem               (full RSA key)
+./xml-sig s file.xml private-key.pem -refs [ref1, ref2...]  (refs optional, always signs full document)  
+./xml-sig v file.xml public-key.pem                         (public key/cert)  
+./xml-sig v file.xml -private private-key.pem               (full RSA key)  
 
 Exempel på refs: '-refs #credit', refererar till en XML-nod med id 'credit'. https://www.w3.org/TR/xmldsig-core/#sec-URI
 
