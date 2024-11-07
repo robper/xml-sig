@@ -1,4 +1,5 @@
-﻿using main;
+﻿using System.Xml;
+using main;
 namespace tests;
 
 public class Tests
@@ -9,7 +10,13 @@ public class Tests
     string cert1 = "";
     string key2 = "";
     string cert2 = "";
+    string inputFile = "";
+    string signedFile = "";
 
+    /// <summary>
+    /// Not.Zero indikerar ett fel
+    /// Zero betyder att det gått bra
+    /// </summary>
     [SetUp]
     public void Setup()
     {
@@ -17,39 +24,85 @@ public class Tests
         key2 = Path.Combine(KEYS_DIR, "private-key-2.pem");
         cert1 = Path.Combine(KEYS_DIR, "cert.pem");
         cert2 = Path.Combine(KEYS_DIR, "cert-2.pem");
+        inputFile = Path.Combine(PROJ_DIR, "test.xml");
+        signedFile = Path.Combine(Environment.CurrentDirectory, "signed.xml");
     }
     
 
     [Test]
-    public void Default()
+    public void NoEKNoCert()
     {
-        string inputFile = Path.Combine(PROJ_DIR, "test.xml");
-        string signedFile = Path.Combine(Environment.CurrentDirectory, "signed.xml");
         XMLsig.Main(new[] { "s", inputFile, key1 });
-        Assert.That(XMLsig.Main(new[] { "v", signedFile, cert1}), Is.Zero);
+        var ex = Assert.Throws<Exception>(() => XMLsig.Main(new[] { "v", signedFile }));
+        Assert.That(ex.Message, Is.EqualTo("No public key"));
+        
     }
     [Test]
-    public void ValWithPriv()
+    public void NoEKPublicCert()
     {
-        string inputFile = Path.Combine(PROJ_DIR, "test.xml");
-        string signedFile = Path.Combine(Environment.CurrentDirectory, "signed.xml");
         XMLsig.Main(new[] { "s", inputFile, key1 });
-        Assert.That(XMLsig.Main(new[] { "v", signedFile, "-private", key1 }), Is.Zero);
+        var returnVal = XMLsig.Main(new[] { "v", signedFile, cert1 });
+        Assert.That( returnVal, Is.Zero);
     }
     [Test]
-    public void ValWithWrongCert()
+    public void NoEKPublicCert_Manipulate()
     {
-        string inputFile = Path.Combine(PROJ_DIR, "test.xml");
-        string signedFile = Path.Combine(Environment.CurrentDirectory, "signed.xml");
         XMLsig.Main(new[] { "s", inputFile, key1 });
-        Assert.That(XMLsig.Main(new[] { "v", signedFile, cert2 }), Is.Not.Zero);
+        XmlDocument doc = new()
+        {
+            PreserveWhitespace = true
+        };
+        doc.Load(signedFile);
+        doc.SelectSingleNode("//creditcard/number").InnerText = "1";
+        doc.Save(signedFile);
+        var returnVal = XMLsig.Main(new[] { "v", signedFile, cert1 });
+        Assert.That(returnVal, Is.Not.Zero);
     }
     [Test]
-    public void MultipleRefs()
+    public void NoEKWrongCert()
     {
-        string inputFile = Path.Combine(PROJ_DIR, "test.xml");
-        string signedFile = Path.Combine(Environment.CurrentDirectory, "signed.xml");
-        XMLsig.Main(new[] { "s", inputFile, key1, "-refs", "#credit"});
-        Assert.That(XMLsig.Main(new[] { "v", signedFile, cert1 }), Is.Zero);
+        XMLsig.Main(new[] { "s", inputFile, key1 });
+        var returnVal = XMLsig.Main(new[] { "v", signedFile, cert2 });
+        Assert.That(returnVal, Is.Not.Zero);
+    }
+
+
+    [Test]
+    public void EKNoCert()
+    {
+        XMLsig.Main(new[] { "s", inputFile, key1, "-ek" });
+        var returnVal = XMLsig.Main(new[] { "v", signedFile });
+        Assert.That(returnVal, Is.Zero);
+    }
+    
+    [Test]
+    public void EKPublicCert()
+    {
+        XMLsig.Main(new[] { "s", inputFile, key1, "-ek" });
+        var returnVal = XMLsig.Main(new[] { "v", signedFile, cert1 });
+        Assert.That(returnVal, Is.Zero);
+    }
+    [Test]
+    public void EKWrongPublicCert()
+    {
+        XMLsig.Main(new[] { "s", inputFile, key1, "-ek" });
+        var returnVal = XMLsig.Main(new[] { "v", signedFile, cert2 });
+        Assert.That(returnVal, Is.Not.Zero);
+    }
+    
+    [Test]
+    public void EKNoCert_Manipulated()
+    {
+        XMLsig.Main(new[] { "s", inputFile, key1, "-ek" });
+        XmlDocument doc = new()
+        {
+            PreserveWhitespace = true
+        };
+        doc.Load(signedFile);
+        doc.SelectSingleNode("//creditcard/number").InnerText = "1";
+        doc.Save(signedFile);
+        var returnVal = XMLsig.Main(new[] { "v", signedFile });
+        Console.WriteLine(returnVal);
+        Assert.That(returnVal, Is.Not.Zero);
     }
 }

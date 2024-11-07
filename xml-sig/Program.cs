@@ -22,32 +22,29 @@ namespace main
         public static int Main(string[] args)
         {
             string usage =
-                    "xml-sig s file.xml private-key.pem -refs [ref1, ref2...]\n" +
-                    "xml-sig v file.xml -private private-key.pem (full RSA key)\n" +
-                    "xml-sig v file.xml public-key.pem (public key/cert)";
+                    "xml-sig s file.xml private-key.pem [-ek] (-ek embed keyinfo in signature)\n" +
+                    "xml-sig v file.xml (implicit cert in file)\n" +
+                    "xml-sig v file.xml public-key.pem (public cert)";
 
-            if (args.Length < 3)
+            if (args.Length < 2)
             {
                 Console.WriteLine(usage);
                 return 1;
             }
             string method = args[0];
             string xmlFile = args[1];
-            string keyFile = "";
-            List<string> references = new() { "" }; // Default full doc
+            string keyFile;
+            // Tomma strängen betyder att vi signerar hela filen, ta inte bort
+            List<string> references = new() { "" };
 
             switch (method.ToLower())
             {
                 case "s":
                 case "sign":
-                    if (args.Length >= 4 && args[3] == "-refs")
-                    {
-                        references.AddRange(args[4].Split(','));
-                    }
                     keyFile = args[2];
                     var rsaKey = LoadRSAKeys(File.ReadAllText(keyFile));
                     var xmlDoc = LoadXml(xmlFile);
-                    Sign(ref xmlDoc, rsaKey, references);
+                    Sign(ref xmlDoc, rsaKey, references, args.Contains("-ek"));
 
                     xmlDoc.Save("signed.xml");
                     Console.WriteLine($"signed.xml"); // Full-url
@@ -57,22 +54,22 @@ namespace main
                 case "validate":
                     var xmlDoc_v = LoadXml(xmlFile);
                     bool isValid;
-                    if (args[2] == "-private")
-                    {
-                        keyFile = args[3];
-                        var rsaKey_v = LoadRSAKeys(File.ReadAllText(keyFile));
-                        isValid = Validate(xmlDoc_v, rsaKey_v);
 
-                    }
-                    else
+                    // Med ett utpekat publikt cert
+                    if (args.Length > 2)
                     {
                         keyFile = args[2];
                         var pubCert = new X509Certificate2(keyFile);
                         isValid = Validate(xmlDoc_v, pubCert);
                     }
+                    // Certet hämtas från inuti signaturen
+                    else
+                    {
+                        isValid = Validate(xmlDoc_v);
+                    }
 
                     Console.WriteLine(isValid);
-                    return isValid ? 0 : 1;
+                    return isValid ? 0 : 1; // Om valid = OK (0)
 
                 default:
                     Console.WriteLine(usage);
@@ -80,7 +77,7 @@ namespace main
             }
             return 0;
         }
-        static void Sign(ref XmlDocument file, RSA privateKey, List<string> references)
+        static void Sign(ref XmlDocument file, RSA privateKey, List<string> references, bool embeddKey)
         {
             SignedXml signedXml = new(file)
             {
@@ -105,19 +102,19 @@ namespace main
                 signedXml.AddReference(_reference);
             }
 
+            if (embeddKey) {
             // Create a self-signed certificate
-            // Måste göras för att konvertera RSA-nycklar till ett certifikat
+            // Måste göras för att konvertera den privata RSA-nyckeln till ett certifikat
             // Detta motsvarar: 'openssl req -new -x509 -key private-key.pem -out cert.pem -years 1'
-            var request = new CertificateRequest("CN=SelfSignedCert", privateKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-            X509Certificate2 cert = request.CreateSelfSigned(DateTimeOffset.Now, DateTimeOffset.Now.AddYears(1));
+                var certRequest = new CertificateRequest("CN=SelfSignedCert", privateKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+                X509Certificate2 cert = certRequest.CreateSelfSigned(DateTimeOffset.Now, DateTimeOffset.Now.AddYears(1));
 
-            //signedXml.SigningKey = privateKey; // Vad gör den?
-
-            // Lägger till KeyInfo-taggar, som kan användas vid validering
-            KeyInfo ki = new KeyInfo();
-            ki.AddClause(new RSAKeyValue(privateKey));
-            ki.AddClause(new KeyInfoX509Data(cert));
-            signedXml.KeyInfo = ki;
+                // Lägger till KeyInfo-taggar, som kan användas vid validering
+                KeyInfo ki = new KeyInfo();
+                //ki.AddClause(new RSAKeyValue(privateKey));
+                ki.AddClause(new KeyInfoX509Data(cert));
+                signedXml.KeyInfo = ki;
+            }
             
             signedXml.ComputeSignature();
 
@@ -127,18 +124,10 @@ namespace main
             return;
         }
 
-        static bool Validate(XmlDocument file, X509Certificate2 certificate)
-        {
-            if(certificate.GetRSAPublicKey() == null)
-            {
-                throw new Exception("No public key found!");
-            }
-            return Validate(file, certificate.GetRSAPublicKey());
-        }
 
         // https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.xml.signedxml.checksignature?view=net-7.0
         // 'This method also computes the digest of the references and the value of the signature.'
-        static bool Validate(XmlDocument file, RSA publicKey)
+        static bool Validate(XmlDocument file, X509Certificate2? certificate = null)
         {
             var signedXml = new SignedXml(file);
 
@@ -154,11 +143,43 @@ namespace main
             {
                 throw new Exception("No references");
             }
-            bool isValid = signedXml.CheckSignature(publicKey); // Validerar alla referenser och signaturen
-            foreach (Reference reference in signedXml.SignedInfo.References)
+            // Testa. 
+            // Flagga att inte embedda nkeyinfo
+            // Plockar ut certifikatet om det finns och gör det till rätt keytype
+            X509Certificate2? ExtractKey()
             {
-                Console.WriteLine($"Reference URI '{reference.Uri}'");
+                foreach (KeyInfoClause clause in signedXml.KeyInfo)
+                {
+                    if (clause is KeyInfoX509Data keyInfoX509Data)
+                    {
+                        foreach (X509Certificate2 cert in keyInfoX509Data.Certificates)
+                        {
+                            // Do something with the certificate
+                            Console.WriteLine(cert.Subject);
+                            return cert;
+                        }
+                    }
+                }
+                return null;
             }
+                // Om vi inte pekar ut ett nyckelpar så söker vi i filen efter certet
+            if (certificate is null)
+            {
+                certificate ??= ExtractKey();
+            }
+
+            // Om vi inte hittar något cert i filen och inte har pekat ut
+            if(certificate is null)
+            {
+                throw new Exception("No public key");
+            }
+
+            // Validerar signaturen
+            // Måste sätta true eftersom vi använder selfsigned cert
+            bool isValid = signedXml.CheckSignature(certificate, true);
+            // Ta bort private delarna och gör mot certet här
+            //bool isValid = signedXml.CheckSignature(publicKey);
+            
             return isValid;
         }
 

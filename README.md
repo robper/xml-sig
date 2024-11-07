@@ -17,19 +17,27 @@ Create X509 (public key)
 ```
 openssl req -new -x509 -key private-key.pem -out cert.pem -days 360
 ```
-
-./xml-sig s file.xml private-key.pem
-./xml-sig v file.xml cert.pem
-  
  
 # Användning
-./xml-sig s file.xml private-key.pem -refs [ref1, ref2...]  (refs optional, always signs full document)  
-./xml-sig v file.xml public-key.pem                         (public key/cert)  
-./xml-sig v file.xml -private private-key.pem               (full RSA key)  
+xml-sig s file.xml private-key.pem [-ek]    (-ek lägger in publika certet i KeyInfo)
+xml-sig v file.xml                          (implicit cert in file)
+xml-sig v file.xml public-key.pem           (public cert)
 
-Exempel på refs: '-refs #credit', refererar till en XML-nod med id 'credit'. https://www.w3.org/TR/xmldsig-core/#sec-URI
+
 
 Normal användning:  
 Ta fram den XML ni vill signera.  
 Signera den med 's' och den privata nyckeln.  
 Validera signaturen 'v' med den publika nyckeln.  
+
+# Tests
+Signera utan ek
+    Validera med public, OK
+    Validera utan, gör ändring i filen, FEL
+    Validera utan, FEL
+    Validera med fel public, FEL
+Signera med ek
+    Validera utan, OK
+    Validera utan, gör ändring i filen, FEL
+    (Validera med public) bara för att, OK
+    (Validera med fel public) bara för att, FEL
