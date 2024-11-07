@@ -5,7 +5,7 @@ namespace tests;
 public class Tests
 {
     readonly string KEYS_DIR = Path.Combine(Directory.GetParent(Environment.CurrentDirectory).Parent.Parent.FullName, "keys");
-    readonly string PROJ_DIR= Directory.GetParent(Environment.CurrentDirectory).Parent.Parent.FullName;
+    readonly string PROJ_DIR = Directory.GetParent(Environment.CurrentDirectory).Parent.Parent.FullName;
     string key1 = "";
     string cert1 = "";
     string key2 = "";
@@ -27,7 +27,7 @@ public class Tests
         inputFile = Path.Combine(PROJ_DIR, "test.xml");
         signedFile = Path.Combine(Environment.CurrentDirectory, "signed.xml");
     }
-    
+
 
     [Test]
     public void NoEKNoCert()
@@ -35,14 +35,14 @@ public class Tests
         XMLsig.Main(new[] { "s", inputFile, key1 });
         var ex = Assert.Throws<Exception>(() => XMLsig.Main(new[] { "v", signedFile }));
         Assert.That(ex.Message, Is.EqualTo("No public key"));
-        
+
     }
     [Test]
     public void NoEKPublicCert()
     {
         XMLsig.Main(new[] { "s", inputFile, key1 });
         var returnVal = XMLsig.Main(new[] { "v", signedFile, cert1 });
-        Assert.That( returnVal, Is.Zero);
+        Assert.That(returnVal, Is.Zero);
     }
     [Test]
     public void NoEKPublicCert_Manipulate()
@@ -74,7 +74,7 @@ public class Tests
         var returnVal = XMLsig.Main(new[] { "v", signedFile });
         Assert.That(returnVal, Is.Zero);
     }
-    
+
     [Test]
     public void EKPublicCert()
     {
@@ -89,7 +89,7 @@ public class Tests
         var returnVal = XMLsig.Main(new[] { "v", signedFile, cert2 });
         Assert.That(returnVal, Is.Not.Zero);
     }
-    
+
     [Test]
     public void EKNoCert_Manipulated()
     {
