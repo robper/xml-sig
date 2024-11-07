@@ -22,9 +22,9 @@ namespace main
         public static int Main(string[] args)
         {
             string usage =
-                    "xml-sig s file.xml private-key.pem [-ek] (-ek embed keyinfo in signature)\n" +
-                    "xml-sig v file.xml (implicit cert in file)\n" +
-                    "xml-sig v file.xml public-key.pem (public cert)";
+                    "xml-sig s file.xml private-key.pem [-ek]   (-ek embed X509 cert in KeyInfo)\n" +
+                    "xml-sig v file.xml                         (implicit X509 cert in file)\n" +
+                    "xml-sig v file.xml public-key.pem          (public X509 cert)";
 
             if (args.Length < 2)
             {
